@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PubNub Real-Time Chat</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdn.pubnub.com/sdk/javascript/pubnub.8.2.7.min.js"></script>
+</head>
+<body>
+    <div class="chat-container">
+        <header class="chat-header">
+            <div class="header-left">
+                <h1>💬 PubNub Chat</h1>
+            </div>
+            <div class="header-center">
+                <div class="online-count">
+                    <span class="online-indicator"></span>
+                    <span id="online-count">1 online</span>
+                </div>
+            </div>
+            <div class="header-right">
+                <span id="username-display" class="username-badge">Anonymous</span>
+                <button id="theme-toggle" class="theme-toggle" title="Toggle theme">
+                    <span class="theme-icon">🌙</span>
+                </button>
+            </div>
+        </header>
+
+        <div class="chat-main">
+            <aside class="sidebar">
+                <div class="user-setup">
+                    <input type="text" id="username-input" placeholder="Enter your name" maxlength="20">
+                    <button id="set-username">Set Name</button>
+                </div>
+                <div class="online-users">
+                    <h3>Online Users</h3>
+                    <ul id="users-list"></ul>
+                </div>
+            </aside>
+
+            <div class="chat-content">
+                <div class="messages-container" id="messages-container">
+                    <div class="welcome-message">
+                        <div class="welcome-icon">💬</div>
+                        <h2>Welcome to PubNub Chat</h2>
+                        <p>Connect and chat with people around the world in real-time</p>
+                        <div class="welcome-features">
+                            <span class="feature">🔄 Real-time messaging</span>
+                            <span class="feature">👥 See who's online</span>
+                            <span class="feature">⚡ Instant delivery</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="typing-indicator" id="typing-indicator"></div>
+                
+                <div class="message-input-container">
+                    <input type="text" id="message-input" placeholder="Type your message..." maxlength="500">
+                    <button id="send-button">Send</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="chat.js"></script>
+</body>
+</html>
+

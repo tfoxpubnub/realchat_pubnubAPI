@@ -1,0 +1,21 @@
+{
+  "name": "pubnub-trial",
+  "version": "1.0.0",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js",
+    "chat": "node app.js",
+    "simple": "node examples/simple-publish-subscribe.js",
+    "presence": "node examples/presence-demo.js",
+    "history": "node examples/history-demo.js",
+    "errors": "node examples/error-handling-demo.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": ["pubnub", "real-time", "messaging", "chat", "websocket"],
+  "author": "Tim Fox",
+  "license": "ISC",
+  "description": "PubNub API trial implementation showcasing real-time messaging, presence tracking, message history, and error handling in Node.js",
+  "dependencies": {
+    "pubnub": "^10.1.0"
+  }
+}
