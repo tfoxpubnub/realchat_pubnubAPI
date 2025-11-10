@@ -43,6 +43,9 @@ class PubNubChat {
             heartbeatInterval: 19
         });
 
+        // Initialize auto-moderation filters
+        this.initializeModerationFilters();
+
         // Set up listeners
         this.pubnub.addListener({
             message: (event) => {
@@ -54,7 +57,8 @@ class PubNubChat {
                 }
             },
             presence: this.handlePresence.bind(this),
-            status: this.handleStatus.bind(this)
+            status: this.handleStatus.bind(this),
+            objects: this.handleObjectsEvent.bind(this)
         });
 
         // Subscribe to channels
@@ -62,6 +66,9 @@ class PubNubChat {
             channels: [this.channel, `${this.channel}-typing`],
             withPresence: true
         });
+
+        // Initialize App Context for this user
+        this.initializeUserMetadata();
     }
 
     initializeUI() {
@@ -145,6 +152,9 @@ class PubNubChat {
                 channels: [this.channel],
                 state: { username: this.username }
             });
+            
+            // Update App Context metadata
+            this.initializeUserMetadata();
         }
     }
 
@@ -158,11 +168,20 @@ class PubNubChat {
         const messageText = this.elements.messageInput.value.trim();
         if (!messageText) return;
 
+        // Apply auto-moderation
+        const moderation = this.moderateMessage(messageText);
+        
+        if (!moderation.passed) {
+            this.showError(`Message blocked: ${moderation.reason}`);
+            return;
+        }
+
         const message = {
-            text: messageText,
+            text: moderation.filteredText,
             username: this.username,
             userId: this.userId,
-            timestamp: new Date().toISOString()
+            timestamp: new Date().toISOString(),
+            moderated: moderation.filteredText !== messageText
         };
 
         this.pubnub.publish({
@@ -174,6 +193,10 @@ class PubNubChat {
             } else {
                 this.elements.messageInput.value = '';
                 this.stopTyping();
+                
+                if (message.moderated) {
+                    this.showNotification('Message was auto-filtered for content');
+                }
             }
         });
     }
@@ -498,6 +521,224 @@ class PubNubChat {
         div.textContent = text;
         return div.innerHTML;
     }
+
+    // ============================================
+    // AUTO-MODERATION & ANTI-SPAM FEATURES
+    // ============================================
+    
+    initializeModerationFilters() {
+        // Profanity filter with common inappropriate words
+        this.profanityList = [
+            'spam', 'badword', 'inappropriate', // Add more as needed
+        ];
+        
+        // Spam detection settings
+        this.messageHistory = []; // Stores {text, timestamp} objects for duplicate detection
+        this.messageTimestamps = []; // Stores just timestamps for rate limiting
+        this.maxMessagesPerMinute = 10;
+        this.similarityThreshold = 0.8;
+    }
+
+    moderateMessage(text) {
+        const moderationResult = {
+            passed: true,
+            reason: '',
+            filteredText: text
+        };
+
+        // Check for duplicate/similar messages FIRST (before adding to history)
+        if (this.isDuplicateMessage(text)) {
+            moderationResult.passed = false;
+            moderationResult.reason = 'Duplicate message detected';
+            return moderationResult;
+        }
+
+        // Check for profanity
+        const lowerText = text.toLowerCase();
+        for (const word of this.profanityList) {
+            if (lowerText.includes(word)) {
+                moderationResult.passed = false;
+                moderationResult.reason = 'Profanity detected';
+                moderationResult.filteredText = this.filterProfanity(text);
+                break;
+            }
+        }
+
+        // Check for spam (rate limiting)
+        if (this.isSpamming()) {
+            moderationResult.passed = false;
+            moderationResult.reason = 'Sending messages too quickly';
+            return moderationResult;
+        }
+
+        // Check for excessive caps
+        if (this.hasExcessiveCaps(text)) {
+            moderationResult.filteredText = this.normalizeCaps(text);
+        }
+
+        // Track message after all checks pass
+        this.trackMessageForModeration(text);
+
+        return moderationResult;
+    }
+
+    trackMessageForModeration(text) {
+        const now = Date.now();
+        
+        // Track message text and timestamp for duplicate detection
+        this.messageHistory.push({
+            text: text,
+            timestamp: now
+        });
+        
+        // Keep only last 10 messages for duplicate detection
+        if (this.messageHistory.length > 10) {
+            this.messageHistory.shift();
+        }
+        
+        // Track timestamps for rate limiting
+        this.messageTimestamps.push(now);
+        const oneMinuteAgo = now - 60000;
+        this.messageTimestamps = this.messageTimestamps.filter(t => t > oneMinuteAgo);
+    }
+
+    filterProfanity(text) {
+        let filtered = text;
+        for (const word of this.profanityList) {
+            const regex = new RegExp(word, 'gi');
+            filtered = filtered.replace(regex, '***');
+        }
+        return filtered;
+    }
+
+    isSpamming() {
+        const now = Date.now();
+        const oneMinuteAgo = now - 60000;
+        const recentMessages = this.messageTimestamps.filter(timestamp => timestamp > oneMinuteAgo);
+        return recentMessages.length >= this.maxMessagesPerMinute;
+    }
+
+    isDuplicateMessage(text) {
+        if (this.messageHistory.length === 0) return false;
+        
+        const now = Date.now();
+        const lastMessage = this.messageHistory[this.messageHistory.length - 1];
+        const timeSinceLastMessage = now - lastMessage.timestamp;
+        
+        // Check if exact same message was sent within 5 seconds
+        if (timeSinceLastMessage < 5000 && lastMessage.text === text) {
+            return true;
+        }
+        
+        // Check for very similar messages within 10 seconds
+        const similarity = this.calculateSimilarity(text, lastMessage.text);
+        return similarity > this.similarityThreshold && timeSinceLastMessage < 10000;
+    }
+
+    calculateSimilarity(str1, str2) {
+        const longer = str1.length > str2.length ? str1 : str2;
+        const shorter = str1.length > str2.length ? str2 : str1;
+        
+        if (longer.length === 0) return 1.0;
+        
+        const editDistance = this.levenshteinDistance(longer, shorter);
+        return (longer.length - editDistance) / longer.length;
+    }
+
+    levenshteinDistance(str1, str2) {
+        const matrix = [];
+        
+        for (let i = 0; i <= str2.length; i++) {
+            matrix[i] = [i];
+        }
+        
+        for (let j = 0; j <= str1.length; j++) {
+            matrix[0][j] = j;
+        }
+        
+        for (let i = 1; i <= str2.length; i++) {
+            for (let j = 1; j <= str1.length; j++) {
+                if (str2.charAt(i - 1) === str1.charAt(j - 1)) {
+                    matrix[i][j] = matrix[i - 1][j - 1];
+                } else {
+                    matrix[i][j] = Math.min(
+                        matrix[i - 1][j - 1] + 1,
+                        matrix[i][j - 1] + 1,
+                        matrix[i - 1][j] + 1
+                    );
+                }
+            }
+        }
+        
+        return matrix[str2.length][str1.length];
+    }
+
+    hasExcessiveCaps(text) {
+        if (text.length < 5) return false;
+        const capsCount = (text.match(/[A-Z]/g) || []).length;
+        return capsCount / text.length > 0.6;
+    }
+
+    normalizeCaps(text) {
+        return text.charAt(0).toUpperCase() + text.slice(1).toLowerCase();
+    }
+
+    // ============================================
+    // APP CONTEXT (OBJECTS) FEATURES
+    // ============================================
+
+    initializeUserMetadata() {
+        if (!this.username) return;
+
+        // Set user metadata using App Context
+        this.pubnub.objects.setUUIDMetadata({
+            uuid: this.userId,
+            data: {
+                name: this.username,
+                profileUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(this.username)}`,
+                custom: {
+                    joinedAt: new Date().toISOString(),
+                    messageCount: 0
+                }
+            }
+        }, (status, response) => {
+            if (!status.error) {
+                console.log('User metadata set:', response);
+            }
+        });
+    }
+
+    updateUserMetadata() {
+        if (!this.username) return;
+
+        this.pubnub.objects.setUUIDMetadata({
+            uuid: this.userId,
+            data: {
+                name: this.username,
+                profileUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(this.username)}`,
+                custom: {
+                    lastUpdated: new Date().toISOString()
+                }
+            }
+        });
+    }
+
+    handleObjectsEvent(event) {
+        console.log('Objects event:', event);
+        
+        // Handle user metadata updates
+        if (event.message.type === 'uuid') {
+            const userData = event.message.data;
+            console.log('User metadata updated:', userData);
+        }
+        
+        // Handle channel metadata updates
+        if (event.message.type === 'channel') {
+            const channelData = event.message.data;
+            console.log('Channel metadata updated:', channelData);
+        }
+    }
+
 
     cleanup() {
         // Clear presence refresh interval

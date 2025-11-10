@@ -1,6 +1,6 @@
 {
-  "name": "pubnub-trial",
-  "version": "1.0.0",
+  "name": "pubnub-advanced-demo",
+  "version": "2.0.0",
   "main": "app.js",
   "scripts": {
     "start": "node app.js",
@@ -9,12 +9,26 @@
     "presence": "node examples/presence-demo.js",
     "history": "node examples/history-demo.js",
     "errors": "node examples/error-handling-demo.js",
+    "app-context": "node examples/app-context-demo.js",
+    "message-actions": "node examples/message-actions-demo.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": ["pubnub", "real-time", "messaging", "chat", "websocket"],
+  "keywords": [
+    "pubnub",
+    "real-time",
+    "messaging",
+    "chat",
+    "websocket",
+    "app-context",
+    "auto-moderation",
+    "analytics",
+    "message-actions",
+    "pubnub-functions",
+    "illuminate"
+  ],
   "author": "Tim Fox",
   "license": "ISC",
-  "description": "PubNub API trial implementation showcasing real-time messaging, presence tracking, message history, and error handling in Node.js",
+  "description": "Advanced PubNub demo showcasing App Context, auto-moderation, message actions, analytics, and comprehensive real-time features including MCP integration patterns",
   "dependencies": {
     "pubnub": "^10.1.0"
   }
